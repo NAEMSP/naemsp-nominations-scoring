@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NAEMSP Applicant Scoring System</title>
+    <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lucide/0.263.1/umd/lucide.min.js"></script>
+</head>
+<body>
+    <div id="root"></div>
+    
+    <script type="text/babel">
+        const { Download } = lucide;
+        const { useState } = React;
+
+        const ScoringSpreadsheet = () => {
+          const reviewers = ['Jose', 'Phil', 'Ritu', 'Rebecca', 'Lekshmi'];
+          const applicantNames = [
+            'Kevin Jura', 'Elizabeth Melton', 'Remle Crowe', 'Scott Youngquist',
+            'Michael Carr', 'Andra Farcas', 'Scott Goldberg', 'Kathleen Adelgais',
+            'Peter Antevy', 'Amber Rice', 'Diane Miller', 'Navin Ariyaprakai',
+            'Brandon Morshedi', 'Joseph Grover', 'Roberto Portela', 'John Lyng'
+          ];
+
+          const criteria = [
+            { 
+              id: 'committee_chair', 
+              name: 'NAEMSP Committee Chair/Co Chair Experience', 
+              short: 'Committee Chair',
+              points: 4,
+              type: 'checkbox'
+            },
+            { 
+              id: 'program_committee', 
+              name: 'Program Committee or Standards & Practice Committee Chair experience', 
+              short: 'Program Committee',
+              points: 5,
+              type: 'checkbox'
+            },
+            { 
+              id: 'flagship_director', 
+              name: 'Director or Co/Director of NAEMSP Flagship Courses (MDC, Q&S or ATMD)', 
+              short: 'Flagship Director',
+              points: 3,
+              type: 'checkbox'
+            },
+            { 
+              id: 'faculty', 
+              name: 'Faculty at NAEMSP\'s National Conference', 
+              short: 'Faculty',
+              points: 2,
+              type: 'checkbox'
+            },
+            { 
+              id: 'engagement', 
+              name: 'Engagement in NAEMSP Activities', 
+              short: 'Engagement',
+              type: 'dropdown',
+              options: [0, 2, 3, 4]
+            },
+            { 
+              id: 'visibility', 
+              name: 'National Visibility', 
+              short: 'Visibility',
+              points: 2,
+              type: 'checkbox'
+            },
+            { 
+              id: 'local_chapter', 
+              name: 'Local Chapter Leadership', 
+              short: 'Local Chapter',
+              points: 3,
+              type: 'checkbox'
+            }
+          ];
+
+          const [activeTab, setActiveTab] = useState('Instructions');
+          
+          const initialScores = {};
+          const initialComments = {};
+          reviewers.forEach(reviewer => {
+            initialScores[reviewer] = {};
+            initialComments[reviewer] = {};
+            applicantNames.forEach(name => {
+              initialScores[reviewer][name] = {};
+              initialComments[reviewer][name] = '';
+            });
+          });
+
+          const [scores, setScores] = useState(initialScores);
+          const [comments, setComments] = useState(initialComments);
+
+          const updateScore = (reviewer, applicant, criteriaId, value) => {
+            setScores(prev => ({
+              ...prev,
+              [reviewer]: {
+                ...prev[reviewer],
+                [applicant]: {
+                  ...prev[reviewer][applicant],
+                  [criteriaId]: value
+                }
+              }
+            }));
+          };
+
+          const updateComment = (reviewer, applicant, comment) => {
+            setComments(prev => ({
+              ...prev,
+              [reviewer]: {
+                ...prev[reviewer],
+                [applicant]: comment
+              }
+            }));
+          };
+
+          const calculateTotal = (reviewerScores) => {
+            return Object.values(reviewerScores).reduce((sum, val) => sum + (parseFloat(val) || 0), 0);
+          };
+
+          const calculateAverageScore = (applicant) => {
+            let totalScore = 0;
+            let count = 0;
+            reviewers.forEach(reviewer => {
+              const reviewerTotal = calculateTotal(scores[reviewer][applicant]);
+              if (reviewerTotal > 0) {
+                totalScore += reviewerTotal;
+                count++;
+              }
+            });
+            return count > 0 ? (totalScore / count).toFixed(2) : '0.00';
+          };
+
+          const calculateTotalScore = (applicant) => {
+            let totalScore = 0;
+            reviewers.forEach(reviewer => {
+              totalScore += calculateTotal(scores[reviewer][applicant]);
+            });
+            return totalScore.toFixed(2);
+          };
+
+          const exportToCSV = () => {
+            let csv = 'Tab,Applicant Name,';
+            csv += criteria.map(c => c.short).join(',');
+            csv += ',Total Score,Comments\n';
+
+            reviewers.forEach(reviewer => {
+              applicantNames.forEach(app => {
+                csv += `${reviewer},"${app}",`;
+                csv += criteria.map(c => scores[reviewer][app][c.id] || 0).join(',');
+                csv += `,${calculateTotal(scores[reviewer][app])},"${(comments[reviewer][app] || '').replace(/"/g, '""')}"\n`;
+              });
+            });
+
+            csv += '\nMaster Summary,Applicant Name,';
+            csv += reviewers.join(',') + ',Average Score,Total Score\n';
+            applicantNames.forEach(app => {
+              csv += `Master,"${app}",`;
+              csv += reviewers.map(r => calculateTotal(scores[r][app])).join(',');
+              csv += `,${calculateAverageScore(app)},${calculateTotalScore(app)}\n`;
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'naemsp-scores-all-reviewers.csv';
+            a.click();
+          };
+
+          const InstructionsPage = () => (
+            <div className="max-w-4xl mx-auto">
+              <div className="bg-gradient-to-r from-blue-600 to-blue-800 text-white p-8 rounded-lg shadow-lg mb-6">
+                <h2 className="text-3xl font-bold mb-4">Welcome to the NAEMSP Applicant Scoring System</h2>
+                <p className="text-lg">Thank you for participating in this evaluation process.</p>
+              </div>
+
+              <div className="bg-white p-8 rounded-lg shadow-lg mb-6">
+                <h3 className="text-2xl font-bold text-gray-800 mb-4">Instructions for Reviewers</h3>
+                
+                <div className="space-y-4 text-gray-700">
+                  <div className="border-l-4 border-blue-600 pl-4 py-2">
+                    <h4 className="font-bold text-lg mb-2">Step 1: Navigate to Your Tab</h4>
+                    <p>Click on your name in the tab menu above to access your scoring sheet. <strong>Please only use your assigned tab.</strong></p>
+                  </div>
+
+                  <div className="border-l-4 border-blue-600 pl-4 py-2">
+                    <h4 className="font-bold text-lg mb-2">Step 2: Score Each Applicant</h4>
+                    <p>For each of the 16 applicants, evaluate them across 7 criteria:</p>
+                    <ul className="list-disc ml-6 mt-2 space-y-1">
+                      <li><strong>Checkboxes:</strong> For most criteria, simply check the box if the applicant meets the requirement to award full points</li>
+                      <li><strong>Engagement Dropdown:</strong> For "Engagement in NAEMSP Activities" only, select 0, 2, 3, or 4 points based on level of involvement</li>
+                    </ul>
+                  </div>
+
+                  <div className="border-l-4 border-blue-600 pl-4 py-2">
+                    <h4 className="font-bold text-lg mb-2">Step 3: Add Comments</h4>
+                    <p>Use the comments section for each applicant to provide context, notes, or justification for your scoring decisions.</p>
+                  </div>
+
+                  <div className="border-l-4 border-blue-600 pl-4 py-2">
+                    <h4 className="font-bold text-lg mb-2">Step 4: Review Your Work</h4>
+                    <p>Total scores are automatically calculated. Review your scoring before finishing to ensure accuracy.</p>
+                  </div>
+
+                  <div className="border-l-4 border-green-600 pl-4 py-2 bg-green-50">
+                    <h4 className="font-bold text-lg mb-2">📊 Master Summary Tab</h4>
+                    <p><strong>Note:</strong> The Master Summary tab shows combined results from all reviewers. Please do not make changes in this tab—it's for viewing aggregate data only.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-blue-50 p-6 rounded-lg shadow border border-blue-200">
+                <h3 className="font-semibold text-blue-900 mb-3 text-xl">Scoring Criteria Reference:</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-blue-800">
+                  <div>
+                    <p className="font-semibold">• Committee Chair/Co Chair: 4 points</p>
+                    <p className="font-semibold">• Program/Standards Committee Chair: 5 points</p>
+                    <p className="font-semibold">• Flagship Course Director: 3 points</p>
+                    <p className="font-semibold">• National Conference Faculty: 2 points</p>
+                  </div>
+                  <div>
+                    <p className="font-semibold">• Engagement in Activities: 2-4 points</p>
+                    <p className="font-semibold">• National Visibility: 2 points</p>
+                    <p className="font-semibold">• Local Chapter Leadership: 3 points</p>
+                    <p className="font-semibold mt-2 text-lg">Maximum Score: 23 points</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-8 text-center">
+                <button
+                  onClick={() => setActiveTab(reviewers[0])}
+                  className="px-8 py-4 bg-blue-600 text-white text-lg font-semibold rounded-lg hover:bg-blue-700 shadow-lg transition"
+                >
+                  Get Started - Go to Your Tab
+                </button>
+              </div>
+            </div>
+          );
+
+          const ReviewerTab = ({ reviewer }) => (
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="bg-blue-600 text-white">
+                    <th className="border border-blue-700 px-3 py-2 text-left sticky left-0 bg-blue-600 z-10 min-w-[180px]">
+                      Applicant Name
+                    </th>
+                    {criteria.map(c => (
+                      <th key={c.id} className="border border-blue-700 px-3 py-2 text-left min-w-[140px]">
+                        <div className="text-sm font-semibold">{c.short}</div>
+                        <div className="text-xs font-normal mt-1">
+                          {c.type === 'dropdown' ? '(2-4 pts)' : `(${c.points} pts)`}
+                        </div>
+                      </th>
+                    ))}
+                    <th className="border border-blue-700 px-3 py-2 text-center min-w-[100px]">
+                      Total
+                    </th>
+                    <th className="border border-blue-700 px-3 py-2 text-left min-w-[250px]">
+                      Comments
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {applicantNames.map((app, idx) => (
+                    <tr key={app} className={idx % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
+                      <td className="border border-gray-300 px-3 py-2 font-medium sticky left-0 bg-inherit z-10">
+                        {app}
+                      </td>
+                      {criteria.map(c => (
+                        <td key={c.id} className="border border-gray-300 px-2 py-2">
+                          {c.type === 'dropdown' ? (
+                            <select
+                              value={scores[reviewer][app][c.id] || '0'}
+                              onChange={(e) => updateScore(reviewer, app, c.id, e.target.value)}
+                              className="w-full px-2 py-1 border border-gray-300 rounded text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            >
+                              {c.options.map(opt => (
+                                <option key={opt} value={opt}>{opt}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            <input
+                              type="checkbox"
+                              checked={scores[reviewer][app][c.id] == c.points}
+                              onChange={(e) => updateScore(reviewer, app, c.id, e.target.checked ? c.points : 0)}
+                              className="w-5 h-5 cursor-pointer"
+                            />
+                          )}
+                        </td>
+                      ))}
+                      <td className="border border-gray-300 px-3 py-2 text-center font-bold text-lg bg-blue-50">
+                        {calculateTotal(scores[reviewer][app])}
+                      </td>
+                      <td className="border border-gray-300 px-2 py-2">
+                        <textarea
+                          value={comments[reviewer][app] || ''}
+                          onChange={(e) => updateComment(reviewer, app, e.target.value)}
+                          placeholder="Add comments..."
+                          className="w-full px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[60px]"
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+
+          const MasterTab = () => {
+            const sortedApplicants = [...applicantNames].sort((a, b) => {
+              return parseFloat(calculateAverageScore(b)) - parseFloat(calculateAverageScore(a));
+            });
+
+            return (
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="bg-green-600 text-white">
+                      <th className="border border-green-700 px-3 py-2 text-left sticky left-0 bg-green-600 z-10 min-w-[180px]">
+                        Applicant Name
+                      </th>
+                      {reviewers.map(r => (
+                        <th key={r} className="border border-green-700 px-3 py-2 text-center min-w-[100px]">
+                          {r}
+                        </th>
+                      ))}
+                      <th className="border border-green-700 px-3 py-2 text-center min-w-[120px] bg-green-700">
+                        Average Score
+                      </th>
+                      <th className="border border-green-700 px-3 py-2 text-center min-w-[120px] bg-green-700">
+                        Total Score
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sortedApplicants.map((app, idx) => (
+                      <tr key={app} className={idx % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
+                        <td className="border border-gray-300 px-3 py-2 font-medium sticky left-0 bg-inherit z-10">
+                          {app}
+                        </td>
+                        {reviewers.map(r => (
+                          <td key={r} className="border border-gray-300 px-3 py-2 text-center">
+                            {calculateTotal(scores[r][app])}
+                          </td>
+                        ))}
+                        <td className="border border-gray-300 px-3 py-2 text-center font-bold text-lg bg-yellow-50">
+                          {calculateAverageScore(app)}
+                        </td>
+                        <td className="border border-gray-300 px-3 py-2 text-center font-bold text-lg bg-green-50">
+                          {calculateTotalScore(app)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            );
+          };
+
+          return (
+            <div className="w-full min-h-screen bg-gray-50 p-6">
+              <div className="max-w-7xl mx-auto">
+                <div className="bg-white rounded-lg shadow-lg p-6">
+                  <div className="flex justify-between items-center mb-6">
+                    <h1 className="text-2xl font-bold text-gray-800">NAEMSP Applicant Scoring - Multi-Reviewer</h1>
+                    <button
+                      onClick={exportToCSV}
+                      className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                    >
+                      <Download size={16} />
+                      Export All Data
+                    </button>
+                  </div>
+
+                  <div className="flex border-b border-gray-300 mb-6 overflow-x-auto">
+                    <button
+                      onClick={() => setActiveTab('Instructions')}
+                      className={`px-6 py-3 font-semibold whitespace-nowrap ${
+                        activeTab === 'Instructions'
+                          ? 'border-b-4 border-purple-600 text-purple-600'
+                          : 'text-gray-600 hover:text-purple-600'
+                      }`}
+                    >
+                      📋 Instructions
+                    </button>
+                    {reviewers.map(reviewer => (
+                      <button
+                        key={reviewer}
+                        onClick={() => setActiveTab(reviewer)}
+                        className={`px-6 py-3 font-semibold whitespace-nowrap ${
+                          activeTab === reviewer
+                            ? 'border-b-4 border-blue-600 text-blue-600'
+                            : 'text-gray-600 hover:text-blue-600'
+                        }`}
+                      >
+                        {reviewer}
+                      </button>
+                    ))}
+                    <button
+                      onClick={() => setActiveTab('Master')}
+                      className={`px-6 py-3 font-semibold whitespace-nowrap ${
+                        activeTab === 'Master'
+                          ? 'border-b-4 border-green-600 text-green-600'
+                          : 'text-gray-600 hover:text-green-600'
+                      }`}
+                    >
+                      📊 Master Summary
+                    </button>
+                  </div>
+
+                  {activeTab === 'Instructions' ? (
+                    <InstructionsPage />
+                  ) : activeTab === 'Master' ? (
+                    <MasterTab />
+                  ) : (
+                    <ReviewerTab reviewer={activeTab} />
+                  )}
+
+                  {activeTab !== 'Instructions' && activeTab !== 'Master' && (
+                    <div className="mt-6 p-4 bg-blue-50 rounded border border-blue-200">
+                      <h3 className="font-semibold text-blue-900 mb-2">Scoring Guidelines:</h3>
+                      <ul className="text-sm text-blue-800 space-y-1">
+                        <li>• NAEMSP Committee Chair/Co Chair: 4 points</li>
+                        <li>• Program/Standards Committee Chair: 5 points</li>
+                        <li>• Flagship Course Director: 3 points</li>
+                        <li>• National Conference Faculty: 2 points</li>
+                        <li>• Engagement in NAEMSP Activities: 2-4 points (variable)</li>
+                        <li>• National Visibility: 2 points</li>
+                        <li>• Local Chapter Leadership: 3 points</li>
+                        <li className="font-semibold mt-2">Maximum Possible Score: 23 points</li>
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        };
+
+        ReactDOM.render(<ScoringSpreadsheet />, document.getElementById('root'));
+    </script>
+</body>
+</html>
